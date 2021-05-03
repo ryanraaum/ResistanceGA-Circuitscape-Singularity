@@ -1,0 +1,46 @@
+# upgraded to more recent R version
+Bootstrap: docker
+From: rocker/geospatial:4.0.3
+
+%post
+
+## ResistanceGA and needed packages
+Rscript --vanilla -e 'install.packages(c("doParallel", "JuliaCall"), repos = "https://cran.rstudio.com/", dep=TRUE);'
+Rscript --vanilla -e 'devtools::install_github("amandamancini/ResistanceGA", repos = "https://cran.rstudio.com/", build_vignettes = FALSE)'
+
+## Julia 1.6.0 and Circuitscape
+
+# upgraded to most recent julia
+wget https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.0-linux-x86_64.tar.gz
+mkdir -p /usr/local/julia
+tar -C /usr/local/julia -zxvf julia-1.6.0-linux-x86_64.tar.gz --strip 1
+rm julia-1.6.0-linux-x86_64.tar.gz
+
+# A directory for the system julia package repository
+mkdir -p /opt/julia/depot
+
+# Add the required packages and then load them so they get precompiled
+JULIA_DEPOT_PATH=/opt/julia/depot /usr/local/julia/bin/julia -e 'using Pkg; Pkg.add("Suppressor"); Pkg.add("RCall"); Pkg.add("Circuitscape");'
+JULIA_DEPOT_PATH=/opt/julia/depot /usr/local/julia/bin/julia -e 'using Suppressor; using Circuitscape;'
+
+# I'm not 100% sure this is necessary, but the intent is to make sure 
+# that everything in the system julia package repository gets precompiled
+JULIA_DEPOT_PATH=/opt/julia/depot /usr/local/julia/bin/julia --startup-file=no /usr/local/lib/R/site-library/JuliaCall/julia/install_dependency.jl /usr/local/lib/R
+
+%environment
+
+export JULIA_HOME=/usr/local/julia/bin
+export JULIA_BIN=/usr/local/julia/bin/julia
+export PATH=$JULIA_HOME:$PATH
+export JULIA_DEPOT_PATH=/opt/julia/depot
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$R_HOME/lib
+
+%runscript
+
+exec /bin/bash "$@"
+exec /bin/bash /init "$@"
+
+%startscript
+
+exec /bin/bash "$@"
+exec /bin/bash /init "$@"
